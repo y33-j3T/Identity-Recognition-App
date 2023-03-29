@@ -1,0 +1,7 @@
+rootProject.name='Identity Recognition'
+include ':app'
+dependencyResolutionManagement {
+    repositories {
+        google()
+    }
+}
