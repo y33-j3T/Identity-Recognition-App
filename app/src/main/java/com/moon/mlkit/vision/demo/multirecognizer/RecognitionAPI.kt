@@ -52,6 +52,11 @@ class RecognitionAPI {
           face.getLandmark(FaceLandmark.LEFT_EAR)
         }
 
+        if (faceLandmark == null) {
+          Log.w("RecognitionAPI", "Ear landmark not found for face ID ${face.trackingId}")
+          return@map listOf(null, null, null, null) // Or skip this face completely
+        }
+
         var earLeft: Int? = null
         val earTop: Int = (faceLandmark!!.position.y - (face.boundingBox.height() * FaceGraphic.EAR_HEIGHT_PROPORTION / 2.0f)).roundToInt()
         var earRight: Int? = null
@@ -91,7 +96,11 @@ class RecognitionAPI {
       val contentBody = JSONObject()
       val url = URL_SAGEMAKER
 
-      contentBody.put("image", Base64.encodeToString(image!!, Base64.DEFAULT))
+//      contentBody.put("image", Base64.encodeToString(image!!, Base64.DEFAULT))
+      if (image == null) {
+        Log.e("RecognitionAPI", "Image is null. Call storeImage() first.")
+        return null
+      }
 
       for (item in items) {
         if (item != null && item[0] is Face) {
