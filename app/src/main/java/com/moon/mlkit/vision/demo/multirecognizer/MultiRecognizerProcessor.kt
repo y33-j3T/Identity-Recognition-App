@@ -25,154 +25,59 @@ import java.util.*
 
 class MultiRecognizerProcessor(
   context: Context,
-  faceDetectorOptions: FaceDetectorOptions?,
-  barcodeScannerOptions: BarcodeScannerOptions?,
-  earDetectorOptions: CustomObjectDetectorOptions
+  objDetectorOptions: ObjectDetectorOptions
 ) : ProcessorBase<Any>(context) {
-
-  private val faceDetector: FaceDetector
-  private val barcodeScanner: BarcodeScanner
-  private val earDetector: ObjectDetector
+  private val objDetector: ObjectDetector
 
   // image to store
   var image: ByteArray? = null
 
   init {
-    faceDetector = FaceDetection.getClient(
-      faceDetectorOptions ?: FaceDetectorOptions.Builder().build()
-    )
-    barcodeScanner = BarcodeScanning.getClient(
-      barcodeScannerOptions ?: BarcodeScannerOptions.Builder()
-        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-        .build()
-    )
-    earDetector = ObjectDetection.getClient(earDetectorOptions)
+    objDetector = ObjectDetection.getClient(objDetectorOptions)
   }
 
   override fun stop() {
     super.stop()
-    faceDetector.close()
-    barcodeScanner.close()
-    earDetector.close()
+    objDetector.close()
   }
 
   override fun detectInImage(image: InputImage): Task<MutableList<Task<*>>> {
     RecognitionAPI.storeImage(image) // store image to send to recognition API
     return Tasks.whenAllComplete(
-      faceDetector.process(image),
-      barcodeScanner.process(image),
-//      earDetector.process(image)
+      objDetector.process(image)
     )
   }
 
   private var jsonResponse: JSONObject? = null
-  private var recognizedFaces: JSONArray = JSONArray()
-  private var recognizedBarcodes: JSONArray = JSONArray()
-  private var recognizedEars: JSONArray = JSONArray()
+  private var recognizedObjs: JSONArray = JSONArray()
   override fun onSuccess(tasks: MutableList<Task<*>>, graphicOverlay: GraphicOverlay) {
-    var faces: List<Face>? = null
-    var barcodes: List<Barcode>? = null
-    var ears: List<DetectedObject>? = null
+    var objs: List<DetectedObject>? = null
 
     for (task in tasks) {
       if (task.result !is MutableList<*>) continue
       val resultList = task.result as List<*>
 
-      if (resultList.isNotEmpty() && resultList[0] is Face) {
-        // handle face result
-        faces = resultList as List<Face>
-      } else if (resultList.isNotEmpty() && resultList[0] is Barcode) {
-        // handle barcode result
-        barcodes = resultList as List<Barcode>
-      } else if (resultList.isNotEmpty() && resultList[0] is DetectedObject) {
-        // handle ear result
-        ears = resultList as List<DetectedObject>
+    if (resultList.isNotEmpty() && resultList[0] is DetectedObject) {
+        // handle obj result
+        objs = resultList as List<DetectedObject>
       }
     }
 
     // call API
-    if (faces != null || barcodes != null)
-      jsonResponse = RecognitionAPI.requestRecognition(listOf(faces, barcodes))
+    if (objs != null)
+      jsonResponse = RecognitionAPI.requestRecognition(listOf(objs))
 
-    // call encoder for face
-
-
-    // match encoded face from database
-
-
-    // return closest face
-
-
-
-    /* display face, ear */
-    // face
-    if (jsonResponse?.has("faces") == true) {
-      recognizedFaces = jsonResponse?.getJSONArray("faces") ?: JSONArray()
-      Log.i("Faces detected", faces.toString())
-      Log.i("Faces received", recognizedFaces.toString()) // eg. [{"distance":0.53...,"name":"jo..."}]
-    }
-
-    val faceMap = mutableMapOf<Int, Pair<String, Double>>() // face id to name, distance
-
-    for (i in 0 until recognizedFaces.length()) {
-      val recognizedFace = recognizedFaces.getJSONObject(i)
-
-      val faceId = recognizedFace.getInt(("id"))
-      val faceName = recognizedFace.getString("name")
-      val faceDist = recognizedFace.getDouble("distance")
-      faceMap[faceId] = Pair(faceName, faceDist)
-    }
-
-    // ear
-    if (jsonResponse?.has("ears") == true) {
-      recognizedEars = jsonResponse?.getJSONArray("ears") ?: JSONArray()
-      Log.i("Ears received", recognizedEars.toString()) // eg. [{"distance":0.53...,"name":"jo..."}]
-    }
-    val earMap = mutableMapOf<Int, Pair<String, Double>>() // ear id to name, distance
-
-    for (i in 0 until recognizedEars.length()) {
-      val recognizedEar = recognizedEars.getJSONObject(i)
-
-      val faceId = recognizedEar.getInt(("id"))
-      val earName = recognizedEar.getString("name")
-      val earDist = recognizedEar.getDouble("distance")
-      earMap[faceId] = Pair(earName, earDist)
+    // display objects
+    if (jsonResponse?.has("objects") == true) {
+      recognizedObjs = jsonResponse?.getJSONArray("objects") ?: JSONArray()
+      Log.i("Objects received", recognizedObjs.toString()) // eg. [{"distance":0.53...,"name":"jo..."}]
     }
 
     // together
-    if (faces != null) {
-      for (face in faces) {
-        val id = face.trackingId
-        val faceName = faceMap[id]?.first ?: "Unsent"
-        val faceDist = faceMap[id]?.second ?: -1.0
-        val earName = earMap[id]?.first ?: "Unsent"
-        val earDist = earMap[id]?.second ?: -1.0
-        graphicOverlay.add(FaceGraphic(graphicOverlay, face, faceName, faceDist, earName, earDist))
-        logExtrasForTesting(face)
-      }
-    }
-
-    /* display barcode */
-    if (jsonResponse?.has("barcodes") == true) {
-      recognizedBarcodes = jsonResponse?.getJSONArray("barcodes") ?: JSONArray()
-      Log.i("Barcodes detected", barcodes.toString())
-      Log.i("Barcodes received", recognizedBarcodes.toString())
-    }
-
-    val barcodeMap = mutableMapOf<String, String>() // barcode value to content
-    for (i in 0 until recognizedBarcodes.length()) {
-      val recognizedBarcode = recognizedBarcodes.getJSONObject(i)
-      val barcodeValue = recognizedBarcode.getString("value")
-      val barcodeContext = recognizedBarcode.getString("content")
-      barcodeMap[barcodeValue] = barcodeContext
-    }
-
-    if (barcodes != null) {
-      for (barcode in barcodes) {
-        val barcodeValue = barcode.rawValue
-        val barcodeContext = barcodeMap[barcodeValue] ?: "Unsent"
-        graphicOverlay.add(BarcodeGraphic(graphicOverlay, barcode, barcodeContext))
-        logExtrasForTesting(barcode)
+    if (objs != null) {
+      for (obj in objs) {
+        graphicOverlay.add(EarGraphic(graphicOverlay, obj))
+//        logExtrasForTesting(obj)
       }
     }
   }
