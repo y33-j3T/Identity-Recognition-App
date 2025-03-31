@@ -187,20 +187,13 @@ class CameraXLivePreviewActivity :
       imageProcessor!!.stop()
     }
 
-    // face detector options
-    val faceDetectorOptions = PreferenceUtils.getFaceDetectorOptions(this)
-
-    // ear detector options
-//    val earModel = LocalModel.Builder().setAssetFilePath("custom_models/ear_detector.tflite").build()
-    val earModel = LocalModel.Builder().setAssetFilePath("custom_models/ssd_mobilenet_v1_1_metadata_1.tflite").build()
-    val earDetectorOptions = PreferenceUtils.getCustomObjectDetectorOptionsForLivePreview(this, earModel)
-
-    // combined detector
+    // object detector options
+    val objDetectorOptions = PreferenceUtils.getObjectDetectorOptionsForLivePreview(this)
+//    val objModel = LocalModel.Builder().setAssetFilePath("custom_models/ssd_mobilenet_v1_1_metadata_1.tflite").build()
+//    val objDetectorOptions = PreferenceUtils.getCustomObjectDetectorOptionsForLivePreview(this, objModel)
     imageProcessor = MultiRecognizerProcessor(
       this,
-      faceDetectorOptions,
-      null,
-      earDetectorOptions
+      objDetectorOptions
     )
     val builder = ImageAnalysis.Builder()
     val targetResolution = PreferenceUtils.getCameraXTargetResolution(this, lensFacing)
